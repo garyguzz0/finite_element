@@ -3,23 +3,23 @@ import random
 from matplotlib import pyplot as plt
 
 
-start = 0
-end = 1
-num_partitions = 8
+
+class FiniteElement:
+    def __init__(self,start,end,n):
 
 
 
-def create_partition(start,end,num_partitions):
+def create_partition(start,end,n):
     bdrs = set()
-    while len(bdrs) < num_partitions - 1:
+    while len(bdrs) < n - 1:
         bdrs.add(random.uniform(start,end))
     bdrs = sorted(list(bdrs))
     bdrs = [start] + bdrs + [end]
     
-    prtn = []
+    partition = []
     for i in range(len(bdrs)-1):
-        prtn.append((bdrs[i],bdrs[i+1]))
-    return prtn
+        partition.append((bdrs[i],bdrs[i+1]))
+    return partition
     
 def visualize_interval_partitions(partitions, original_start, original_end, title="Interval Partitions"):
     fig, ax = plt.subplots(figsize=(10, 2))
@@ -39,6 +39,21 @@ def visualize_interval_partitions(partitions, original_start, original_end, titl
     plt.title(title)
     plt.show()
     
+def shape_function(start,end):
+    width = end-start
+    phi_0 = 
+    
+def create_shape_functions(partition):
+    n = len(partition)
+    
+    for i = 
+    
 
-prtn = create_partition(start,end,num_partitions)
-visualize_interval_partitions(prtn,start,end)
+
+
+start = 0
+end = 1
+n = 8
+
+partition = create_partition(start,end,n)
+visualize_interval_partitions(partition,start,end)
