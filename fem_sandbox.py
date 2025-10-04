@@ -27,11 +27,6 @@ class FiniteElement:
         return partition
         
     def visualize_interval_partitions(self, partitions, original_start, original_end, title="Interval Partitions"):
-        original_start = self.start
-        original_end = self.end
-        
-        partitions = self.create_partition(original_start, original_end, self.n)
-        
         fig, ax = plt.subplots(figsize=(10, 2))
         
         ax.hlines(0, original_start, original_end, color='gray', linewidth=1, linestyle='--', zorder=0)
@@ -49,18 +44,51 @@ class FiniteElement:
         plt.title(title)
         plt.show()
         
-    def shape_function(self,start,end):
-        start = self.start
-        end = self.end
+    def shape_function_1(self,x,interval):
+        start = interval[0]
+        end = interval[-1]
         
         width = end-start
-        slope = 1/width
+        m = 1/width
+       
+        return -m*(x-end)
+            
+    def shape_function_2(self,x,interval):
+        start = interval[0]
+        end = interval[-1]
         
-    def create_shape_functions(partition):
-        n = len(partition)
+        width = end-start
+        m = 1/width
+        
+        return m*(x-start)
     
+    def create_element_domain(self,interval,m=50):
+        return np.linspace(interval[0],interval[-1],m,endpoint=True)
 
+    def create_shape_functions(self,partition):
+        Phi = []
+        
+        sf1 = self.shape_function_1
+        sf2 = self.shape_function_2
+        for i in range(self.n):
+            interval = partition[i]
+            element_domain = self.create_element_domain(interval)
+            phi = []
+            
+            phi[0] = [sf1(x,interval) for x in element_domain]
+            phi[1] = [sf2(x,interval) for x in element_domain]
+            
+            Phi.append(phi)
+        
+        return Phi
+            
 
 start = 0
 end = 1
 n = 8
+
+fem = FiniteElement(start,end,n)
+partition = fem.create_partition(start, end, n)
+
+Phi = fem.create_shape_functions(partition)
+
