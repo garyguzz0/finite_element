@@ -1,7 +1,7 @@
 import numpy as np
 import random
 from matplotlib import pyplot as plt
-
+import scipy
 
 
 class FiniteElement:
@@ -73,7 +73,7 @@ class FiniteElement:
         
         return m*(x-start)
     
-    def create_element_domain(self,interval,m=50):
+    def create_element_domain(self,interval,m=100):
         return np.linspace(interval[0],interval[-1],m+1,endpoint=True)
     
     def derivative(self,phi,omega):
@@ -133,28 +133,66 @@ class FiniteElement:
             K[i:i+2, i:i+2] += K_e[i]
         return K
     
+    def f(self,x):
+        return 4
+    
+    def create_f_vector(self,omega):
+        f = self.f
+        return np.array([f(x) for x in omega])
+        
+    def compute_element_vector(self,f_vector,phi,dx):
+        return np.dot(-f_vector,phi)*dx
+    
+    def compute_element_vectors(self,Phi,Omega,Dx):
+        F_e = []
+        create_f_vector = self.create_f_vector
+        compute_element_vector = self.compute_element_vector
+        
+        for i in range(self.n):
+            F_e.append([])
+            for j in range(2):
+                f_vector = create_f_vector(Omega[i])
+                element_vector = compute_element_vector(f_vector,Phi[i][j,:],Dx[i])
+                
+                F_e[i].append(element_vector)
+        return F_e
+    
+    def assemble_global_element_vector(self,F_e):
+        F = np.zeros(self.n+1)
+        for i in range(self.n):
+            F[i:i+2] += F_e[i]
+        return F
+    
+    
 def main():
     start = 0
     end = 1
     n=5
 
     fem = FiniteElement(start,end,n)
-    partition = fem.create_random_partition(start, end, n)
-    # partition = fem.create_fixed_partition()
+    # partition = fem.create_random_partition(start, end, n)
+    partition = fem.create_fixed_partition()
 
     [Phi,Omega,Dx] = fem.create_shape_functions(partition)
     
-    fem.plot_shape_functions(Phi,Omega)
+    # fem.plot_shape_functions(Phi,Omega)
 
     K_e = fem.compute_stiffness_matrices(Phi,Omega,Dx)
     K = fem.assemble_global_stiffness_matrix(K_e)
     
-    return K
+    F_e = fem.compute_element_vectors(Phi,Omega,Dx)
+    F = fem.assemble_global_element_vector(F_e)
+    
+    return K, F
 
 if __name__ == "__main__":
-    K = main()
+    [K,F] = main()
+    # G = np.array([.1,.2,.2,.2,.2,.1]) This is what F gives when computed via integrals (as opposed to Riemann sums), but even using this in linalg.solve, it's still wrong
+    # U = np.linalg.solve(K,F) #This is where it goes wrong
+    U = scipy.linalg.solve(K,-F)
     
-    
+    plt.plot(np.linspace(0,1,6),U)
+    plt.show()
 
         
         
