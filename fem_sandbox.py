@@ -55,22 +55,22 @@ class FiniteElement:
         plt.title(title)
         plt.show()
         
+    # N_0(x)
     def shape_function_1(self,x,interval):
         start = interval[0]
         end = interval[-1]
         
         width = end-start
         m = 1/width
-       
         return -m*(x-end)
-            
+         
+    # N_1(x)
     def shape_function_2(self,x,interval):
         start = interval[0]
         end = interval[-1]
         
         width = end-start
         m = 1/width
-        
         return m*(x-start)
     
     def create_element_domain(self,interval,m=100):
@@ -134,7 +134,7 @@ class FiniteElement:
         return K
     
     def f(self,x):
-        return 4
+        return 1
     
     def create_f_vector(self,omega):
         f = self.f
@@ -163,6 +163,101 @@ class FiniteElement:
             F[i:i+2] += F_e[i]
         return F
     
+    # cN(xi)
+    def curly_N(self,xi,node):
+        conj = -2*node+1
+        return 1/2-conj*1/2*xi
+    
+    # phi_e(xi) = x
+    def phi_e(self,xi,a,b):
+        cN = self.curly_N
+        x = cN(xi,0)*a + cN(xi,1)*b
+        return x
+    
+    # phi_e : omega_ref -> omega
+    def x_vector(self,omega_ref,a,b):
+        phi_e = self.phi_e
+        omega = np.array([phi_e(xi,a,b) for xi in omega_ref])
+        return omega
+    
+    # phi_e_inverse(x) = xi
+    def phi_e_inverse(self,x,a,b):
+        return (1/2*(a+b)-x)/(1/2*(a-b))
+    
+    # phi_e_inverse : omega -> omega_ref
+    def xi_vector(self,omega):
+        phi_e_inverse = self.phi_e_inverse
+        a = omega[0]
+        b = omega[-1]
+        omega_ref = np.array([phi_e_inverse(x,a,b) for x in omega])
+        return omega_ref
+    
+    def compute_partial_N_partial_x(self,omega_ref,a,b,node):
+        curly_N = self.curly_N
+        phi_e = self.phi_e
+        
+        partial_cN_partial_xi = scipy.differentiate.derivative(curly_N, omega_ref,args=node).df
+        partial_x_partial_xi = scipy.differentiate.derivative(phi_e, omega_ref, args=(a,b)).df
+        
+        return partial_cN_partial_xi * (1/partial_x_partial_xi)
+    
+    def compute_K_ij_e(self,omega_ref,a,b,i,j):
+        dxi = np.gradient(omega_ref)
+        partial_cNi_parital_xi = scipy.differentiate.derivative(self.curly_N,omega_ref,args=i).df
+        partial_cNj_partial_xi = scipy.differentiate.derivative(self.curly_N,omega_ref,args=j).df
+        
+        partial_Ni_partial_x = self.compute_partial_N_partial_x(omega_ref,a,b,i)
+        partial_Nj_partial_x = self.compute_partial_N_partial_x(omega_ref,a,b,j)
+        partial_x_partial_xi = scipy.differentiate.derivative(self.phi_e, omega_ref, args=(a,b)).df
+        
+        integrand = (partial_Ni_partial_x)*(partial_Nj_partial_x)*(partial_x_partial_xi)*dxi
+        return scipy.integrate.trapezoid(integrand)
+    
+    def compute_F_i_e(self,omega_ref,a,b,i):
+        dxi = np.gradient(omega_ref)
+        partial_x_partial_xi = scipy.differentiate.derivative(self.phi_e, omega_ref, args=(a,b)).df
+        curly_N = self.curly_N
+        curly_N_vector = np.array([curly_N(xi,i) for xi in omega_ref])
+        x_vector = self.x_vector(omega_ref,a,b)
+        f = self.f
+        f_vector = np.array([f(x) for x in x_vector])
+        
+        integrand = -f_vector*curly_N_vector*partial_x_partial_xi*dxi
+        return scipy.integrate.trapezoid(integrand)
+    
+    def get_gauss_points_and_weights(self,order):
+        if order <= 1:
+            return {"points":0,"weights":2}
+        elif 1 < order <= 3:
+            return {"points":[-1/np.power(3,1/2),1/np.power(3,1/2)],"weights":[1,1]}
+        elif 3 < order <=5:
+            return {"points":[-np.power(3/5,1/2), 0, np.power(3/5,1/2)],"weights":[5/9, 8/9, 5/9]}
+        
+    def evaluate_integrand_K(self,xi,i,j,a,b):
+        cN_i = self.curly_N
+        cN_j = self.curly_N
+        phi_e = self.phi_e
+        
+        d_cN_i = scipy.differentiate.derivative(cN_i,xi,args=i).df
+        d_cN_j = scipy.differentiate.derivative(cN_j,xi,args=j).df
+        
+        d_phi_e = scipy.differentiate.derivative(phi_e,xi,args=(a,b)).df
+        
+        return d_cN_i*(1/d_phi_e)*d_cN_j*(1/d_phi_e)*d_phi_e      
+    
+    def gaussian_quadrature(self,integrand,order):
+        gpw = self.get_gauss_points_and_weights(order)
+        
+        return np.dot(integrand,gpw['weights'])
+    
+    
+        
+    # def transform_reference_domain(self,x,)
+    
+    # def compute_reference_element(self):
+        
+        
+    
     
 def main():
     start = 0
@@ -174,6 +269,21 @@ def main():
     partition = fem.create_fixed_partition()
 
     [Phi,Omega,Dx] = fem.create_shape_functions(partition)
+    
+    omega = Omega[0]
+
+    omega_ref = fem.xi_vector(omega)
+
+    partial_N_partial_x = fem.compute_partial_N_partial_x(omega_ref,omega[0],omega[-1],0)
+    
+    K_ij_e = fem.compute_K_ij_e(omega_ref,omega[0],omega[-1],0,1)
+    F_i_e = fem.compute_F_i_e(omega_ref, omega[0], omega[-1],0)
+
+    gpw = fem.get_gauss_points_and_weights(1) 
+    
+    integrand = fem.evaluate_integrand_K(0,0,1,0,.2)
+    
+    gq = fem.gaussian_quadrature(integrand,1)
     
     # fem.plot_shape_functions(Phi,Omega)
 
@@ -187,12 +297,12 @@ def main():
 
 if __name__ == "__main__":
     [K,F] = main()
-    # G = np.array([.1,.2,.2,.2,.2,.1]) This is what F gives when computed via integrals (as opposed to Riemann sums), but even using this in linalg.solve, it's still wrong
+    # F = np.array([.1,.2,.2,.2,.2,.1]) This is what F gives when computed via integrals (as opposed to Riemann sums), but even using this in linalg.solve, it's still wrong
     # U = np.linalg.solve(K,F) #This is where it goes wrong
-    U = scipy.linalg.solve(K,-F)
+    # U = scipy.linalg.solve(K,-F)
     
-    plt.plot(np.linspace(0,1,6),U)
-    plt.show()
+    # plt.plot(np.linspace(0,1,6),U)
+    # plt.show()
 
         
         
